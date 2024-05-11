@@ -3,5 +3,5 @@ solady/=lib/solady/src/
 
 @openzeppelin/=lib/openzeppelin-contracts/
 
-@uniswap/v3-core/=lib/v3-core/contracts
-@uniswap/v3-periphery/=lib/v3-periphery/contracts
+@uniswap/v3-core/=lib/v3-core/
+@uniswap/v3-periphery/=lib/v3-periphery/
