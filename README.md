@@ -75,3 +75,13 @@ This repository is inspired by various sources:
 
 [ci-shield]: https://img.shields.io/github/actions/workflow/status/vectorized/dn404/ci.yml?branch=main&label=build
 [ci-url]: https://github.com/vectorized/dn404/actions/workflows/ci.yml
+
+```
+forge script script/DeployEZDN404.s.sol:EZN404Script --rpc-url https://1rpc.io/matic --broadcast --verify -vvvv
+
+forge script script/DeployEZDN404.s.sol:EZN404Script --rpc-url https://1rpc.io/matic --verify --resume     
+
+forge test --fork-url <your_rpc_url> --fork-block-number 1
+
+forge test test/ezdn404/ezdn404.t.sol:EZDN404Test
+```

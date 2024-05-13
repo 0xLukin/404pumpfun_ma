@@ -1,0 +1,91 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.4;
+
+import {EZDN404} from "../../src/example/EZDN404.sol";
+import ".././utils/SoladyTest.sol";
+
+contract EZDN404Test is SoladyTest {
+    uint256 internal constant _WAD = 10 ** 18;
+
+    EZDN404 dn;
+
+    address alice = address(111);
+    address bob = address(222);
+
+    uint96 pbPrice = 0.001 ether;
+    uint96 wlPrice = 0.0001 ether;
+
+    function setUp() public {
+        string memory name = "ez404test";
+        string memory symbol = "ez404test";
+        uint96 initialSupply = 0;
+        address owner = 0x21C8e614CD5c37765411066D2ec09912020c846F;
+        address _weth = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
+        address _nonfungiblePositionManager = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+
+        dn = new EZDN404(name, symbol, initialSupply, owner, payable(_weth), _nonfungiblePositionManager);
+
+        dn.toggleLive();
+        payable(bob).transfer(10 ether);
+        payable(alice).transfer(10 ether);
+    }
+
+    function testMint() public {
+        vm.startPrank(bob);
+
+        dn.whitelistMint{value: 2*wlPrice}(2);
+        
+
+        // vm.expectRevert(NFTMintDN404.InvalidPrice.selector);
+        // dn.whitelistMint{value: 1 ether}(1);
+
+        // dn.mint{value: 3 * publicPrice}(3);
+        // assertEq(dn.totalSupply(), 1003 * _WAD);
+        // assertEq(dn.balanceOf(bob), 3 * _WAD);
+
+        // dn.mint{value: 2 * publicPrice}(2);
+        // assertEq(dn.totalSupply(), 1005 * _WAD);
+        // assertEq(dn.balanceOf(bob), 5 * _WAD);
+
+        // vm.expectRevert(NFTMintDN404.InvalidMint.selector);
+        // dn.mint{value: publicPrice}(1);
+
+        // vm.stopPrank();
+    }
+
+    // function testTotalSupplyReached() internal {
+    //     // Mint out whole supply
+    //     for (uint160 i; i < 5000; ++i) {
+    //         address a = address(i + 1000);
+    //         payable(a).transfer(1 ether);
+    //         vm.prank(a);
+    //         dn.mint{value: publicPrice}(1);
+    //     }
+
+    //     vm.prank(alice);
+    //     vm.expectRevert(NFTMintDN404.TotalSupplyReached.selector);
+    //     dn.mint{value: publicPrice}(1);
+    // }
+
+    // function testAllowlistMint() internal {
+    //     vm.prank(bob);
+
+    //     bytes32[] memory proof; // Height one tree, so empty proof.
+    //     vm.expectRevert(NFTMintDN404.InvalidProof.selector);
+    //     dn.allowlistMint{value: 5 * allowlistPrice}(5, proof);
+
+    //     vm.startPrank(alice);
+
+    //     vm.expectRevert(NFTMintDN404.InvalidPrice.selector);
+    //     dn.allowlistMint{value: 1 ether}(1, proof);
+
+    //     dn.allowlistMint{value: 5 * allowlistPrice}(5, proof);
+    //     assertEq(dn.totalSupply(), 1005 * _WAD);
+    //     assertEq(dn.balanceOf(alice), 5 * _WAD);
+
+    //     vm.expectRevert(NFTMintDN404.InvalidMint.selector);
+    //     dn.allowlistMint{value: allowlistPrice}(1, proof);
+
+    //     vm.stopPrank();
+    // }
+}
