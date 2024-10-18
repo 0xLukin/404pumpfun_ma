@@ -1,7 +1,8 @@
-# DN404 🥜
+# EZ404 
 
-[![NPM][npm-shield]][npm-url]
-[![CI][ci-shield]][ci-url]
+EZ404 is a fork of DN404. The main file is `EZDN404.sol`.
+When user `publicMint`, it will call `mintNewPosition` , user's eth converts to weth and add liquidity in UniswapV3 pool itself.
+And this LP token will deposit in EZDN404 contract.
 
 DN404 is an implementation of a co-joined ERC20 and ERC721 pair.
 
