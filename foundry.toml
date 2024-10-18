@@ -28,4 +28,4 @@ dictionary_weight = 80
 matic = "https://1rpc.io/matic"
 
 [etherscan]
-matic = {key = "3WUQICZ4SEN2DY8X4CQSJT7Q1V6ACTMRKI", chain = 137, url = "https://api.polygonscan.com/api"}
+matic = {key = "xxxx", chain = 137, url = "https://api.polygonscan.com/api"}

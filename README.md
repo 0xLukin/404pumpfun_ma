@@ -79,9 +79,15 @@ This repository is inspired by various sources:
 ```
 forge script script/DeployEZDN404.s.sol:EZN404Script --rpc-url https://1rpc.io/matic --broadcast --verify -vvvv
 
+forge script script/DeployEZDN404.s.sol:EZN404Script --rpc-url https://rpc.ankr.com/polygon --broadcast --verify -vvvv
+
 forge script script/DeployEZDN404.s.sol:EZN404Script --rpc-url https://1rpc.io/matic --verify --resume     
 
 forge test --fork-url <your_rpc_url> --fork-block-number 1
 
 forge test test/ezdn404/ezdn404.t.sol:EZDN404Test
+
+forge test --match-path test/ezdn404/ezdn404.t.sol --fork-url https://rpc.ankr.com/polygon --fork-block-number 56881747 -vv
+
+forge test --match-path test/ezdn404/ezdn404.t.sol --fork-url https://rpc.ankr.com/eth --fork-block-number 19862397 -vv
 ```

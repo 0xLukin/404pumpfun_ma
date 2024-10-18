@@ -7,6 +7,7 @@ import {Ownable} from "solady/auth/Ownable.sol";
 import {LibString} from "solady/utils/LibString.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {WETH} from "solady/tokens/WETH.sol";
+import {ERC20} from "solady/tokens/ERC20.sol";
 
 import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
 
@@ -17,6 +18,8 @@ import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import "@uniswap/v3-periphery/contracts/base/LiquidityManagement.sol";
+
+import {console2} from "forge-std2/console2.sol";
 
 /**
  * @title NFTMintDN404
@@ -39,6 +42,10 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     uint32 public constant MAX_SUPPLY = 5000;
 
     WETH public weth;
+
+    int24 private constant MIN_TICK = -887272;
+    int24 private constant MAX_TICK = -MIN_TICK;
+    int24 private constant TICK_SPACING = 60;
 
     // uniswapv3
     uint24 public constant poolFee = 3000;
@@ -79,10 +86,18 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
 
         weth = WETH(_weth);
         nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
+
+        // nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+        //     address(this), address(weth), poolFee, 79228162514264337593543950336
+        // );
+
+        nonfungiblePositionManager.createAndInitializePoolIfNecessary(
+            address(weth), address(this),  poolFee, 79228162514264337593543950336
+        );
     }
 
     function _unit() internal view virtual override returns (uint256) {
-        return 10 ** 18;
+        return 10000 * 10 ** 18;
     }
 
     modifier onlyLive() {
@@ -182,7 +197,6 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     function _createDeposit(address owner, uint256 tokenId) internal {
         (,, address token0, address token1,,,, uint128 liquidity,,,,) =
             nonfungiblePositionManager.positions(tokenId);
-
         // set the owner and data for position
         // operator is msg.sender
         deposits[tokenId] =
@@ -202,25 +216,28 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     {
         // For this example, we will provide equal amounts of liquidity in both assets.
         // Providing liquidity in both assets means liquidity will be earning fees and is considered in-range.
-        weth.deposit{value: address(this).balance}();
+        weth.deposit{value: msg.value}();
         uint256 wethBalance = weth.balanceOf(address(this));
 
         uint256 amount0ToMint = wethBalance;
-        uint256 amount1ToMint = 0;
+        _mint(address(this), wethBalance);
+        uint256 amount1ToMint = wethBalance;
 
         // Approve the position manager
         TransferHelper.safeApprove(
-            address(weth), address(nonfungiblePositionManager), amount0ToMint
+            address(this), address(nonfungiblePositionManager), amount0ToMint
         );
-        // TransferHelper.safeApprove(address(this), address(nonfungiblePositionManager), amount1ToMint);
+        TransferHelper.safeApprove(
+            address(weth), address(nonfungiblePositionManager), amount1ToMint
+        );
 
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager
             .MintParams({
             token0: address(weth),
             token1: address(this),
             fee: poolFee,
-            tickLower: TickMath.MIN_TICK,
-            tickUpper: TickMath.MAX_TICK,
+            tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
+            tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
             amount0Desired: amount0ToMint,
             amount1Desired: amount1ToMint,
             amount0Min: 0,
@@ -232,7 +249,12 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         // Note that the pool defined by DAI/USDC and fee tier 0.3% must already be created and initialized in order to mint
         (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint(params);
 
-        // Create a deposit
+        console2.log("=====");
+        console2.log(weth.balanceOf(address(this)));
+        console2.log(balanceOf(address(this)));
+        console2.log("=====");
+
+        // // Create a deposit
         _createDeposit(msg.sender, tokenId);
     }
 
@@ -267,5 +289,9 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
             amount0 += tem0;
             amount1 += tem1;
         }
+    }
+
+    function getOwnLPs(address owner, uint256 index) external view returns (uint256 id) {
+        return ownLPs[owner][index];
     }
 }

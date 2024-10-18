@@ -5,6 +5,7 @@ import {EZDN404} from "../src/example/EZDN404.sol";
 import "forge-std/Script.sol";
 
 contract EZN404Script is Script {
+    EZDN404 dn;
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
@@ -16,7 +17,8 @@ contract EZN404Script is Script {
         address _weth = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
         address _nonfungiblePositionManager = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
 
-        new EZDN404(name, symbol, initialSupply, owner, payable(_weth), _nonfungiblePositionManager);
+        dn = new EZDN404(name, symbol, initialSupply, owner, payable(_weth), _nonfungiblePositionManager);
+        dn.toggleLive();
         vm.stopBroadcast();
     }
 }
