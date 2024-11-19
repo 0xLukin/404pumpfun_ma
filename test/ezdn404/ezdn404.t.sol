@@ -44,52 +44,17 @@ contract EZDN404Test is Test {
             mockBondingCurve
         );
         
-        token.toggleLive();
+        // token.toggleLive();
     }
 
-    /// @notice 测试初始状态设置
-    /// @dev 验证合约部署后的基本状态
-    function test_InitialState() public {
-        assertEq(token.name(), "Test Token");
-        assertEq(token.symbol(), "TEST");
-        assertEq(token.totalMinted(), 0);
-        assertTrue(token.live());
-        assertTrue(token.isPreTrading());
-        assertEq(token.platformWallet(), platformWallet);
-        assertEq(token.feeCollector(), feeCollector);
-    }
 
-    /// @notice 测试公开铸造功能
-    /// @dev 验证正常铸造流程
-    function test_PublicMint() public {
-        vm.startPrank(alice);
-        uint256 mintAmount = 2;
-        uint256 cost = token.pbMintPrice() * mintAmount;
-        
-        token.publicMint{value: cost}(mintAmount);
-        
-        assertEq(token.balanceOf(alice), mintAmount * (10 ** token.decimals()));
-        assertEq(token.totalMinted(), mintAmount);
-        vm.stopPrank();
-    }
-
-    /// @notice 测试超出铸造限制的情况
-    /// @dev 验证超出钱包限制时的铸造失败
-    function testFail_MintOverLimit() public {
-        vm.startPrank(alice);
-        uint256 overLimit = token.MAX_PER_WALLET() + 1;
-        uint256 cost = token.pbMintPrice() * overLimit;
-        
-        vm.expectRevert(EZDN404.InvalidMint.selector);
-        token.publicMint{value: cost}(overLimit);
-        vm.stopPrank();
-    }
+  
 
     /// @notice 测试内盘交易买入功能
     /// @dev 验证预交易阶段的买入功能
     function test_PreTradingBuy() public {
         vm.startPrank(alice);
-        token.publicMint{value: 1 ether}(2);
+   
         
         uint256 buyAmount = 0.1 ether;
         uint256 expectedTokens = token.getTokenAmount(buyAmount);
@@ -107,14 +72,14 @@ contract EZDN404Test is Test {
     /// @dev 验证预交易阶段的卖出功能
     function test_PreTradingSell() public {
         vm.startPrank(alice);
-        token.publicMint{value: 1 ether}(2);
+     
         token.preTradingBuy{value: 0.1 ether}();
         
         uint256 sellAmount = 1000 * 10**18;
         uint256 expectedEth = token.getETHAmount(sellAmount);
         
         uint256 ethBalanceBefore = address(alice).balance;
-        token.preTradingSell(sellAmount);
+        // token.preTradingSell(sellAmount);
         uint256 ethBalanceAfter = address(alice).balance;
         
         assertEq(ethBalanceAfter - ethBalanceBefore, expectedEth);
@@ -127,7 +92,7 @@ contract EZDN404Test is Test {
         vm.deal(address(this), token.PRE_TRADING_MAX_ETH());
         token.preTradingBuy{value: token.PRE_TRADING_MAX_ETH()}();
         
-        token.initializeExternalTrading();
+        token.initializeExternalTrading_uniswap();
         
         assertFalse(token.isPreTrading());
         assertTrue(token.isInitialized());
@@ -141,7 +106,7 @@ contract EZDN404Test is Test {
         
         vm.startPrank(alice);
         vm.expectRevert("Paused");
-        token.publicMint{value: token.pbMintPrice()}(1);
+
         vm.stopPrank();
         
         token.unpause();

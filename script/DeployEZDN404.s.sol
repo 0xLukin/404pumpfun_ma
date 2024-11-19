@@ -14,12 +14,12 @@ contract EZN404Script is Script {
         string memory symbol = "ez404test";
         uint96 initialSupply = 0;
         address owner = 0x21C8e614CD5c37765411066D2ec09912020c846F;
-        address _weth = 0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270;
-        address _nonfungiblePositionManager = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+        address _weth = 0x980B62Da83eFf3D4576C647993b0c1D7faf17c73;
+        address _nonfungiblePositionManager = 0x6b2937Bde17889EDCf8fbD8dE31C3C2a70Bc4d65;
         address platformWallet = 0x0000000000000000000000000000000000000000;
         address feeCollector = 0x0000000000000000000000000000000000000000;
-        address ezswapFactory = 0x0000000000000000000000000000000000000000;
-        address bondingCurve = 0x0000000000000000000000000000000000000000;
+        address ezswapFactory = 0x3149B149068F76e4438aD1C446E3903a351E105b;
+        address bondingCurve = 0x657fE4Fcb432658887BCBfACEa9A308151EC982c;
 
         dn = new EZDN404(
             name,
@@ -33,7 +33,7 @@ contract EZN404Script is Script {
             ezswapFactory,
             bondingCurve
         );
-        dn.toggleLive();
+  
         vm.stopBroadcast();
     }
 }

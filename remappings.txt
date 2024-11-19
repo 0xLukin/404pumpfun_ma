@@ -2,7 +2,8 @@ forge-std/=test/utils/forge-std/
 forge-std2/=lib/forge-std/src
 solady/=lib/solady/src/
 
-@openzeppelin/=lib/openzeppelin-contracts/
+@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
+@openzeppelin-contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 
 @uniswap/v3-core/=lib/v3-core/
 @uniswap/v3-periphery/=lib/v3-periphery/

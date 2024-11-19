@@ -26,6 +26,8 @@ dictionary_weight = 80
 
 [rpc_endpoints]
 matic = "https://1rpc.io/matic"
+arbitrum_sepolia = "https://sepolia-rollup.arbitrum.io/rpc"
 
 [etherscan]
-matic = {key = "xxxx", chain = 137, url = "https://api.polygonscan.com/api"}
+matic = {key = "HTZDRHQUADCMMZDTHWQ3FFUI6B8QBA9DF6", chain = 137, url = "https://api.polygonscan.com/api"}
+arbitrum_sepolia = { key = "G67ERNJQ5H1RQJME1B1V2Z3D63MU3M56R2", url = "https://api-sepolia.arbiscan.io/api", chain = 421614 }

@@ -41,7 +41,7 @@ interface LSSVMPair {
     }
 }
 
-// 在合约开头添加 EZSwap 接口
+// Add EZSwap interface at the beginning of the contract
 interface ILSSVMPairFactory {
     struct CreatePairETHParams {
         IERC721 nft;
@@ -74,15 +74,6 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     string private _symbol;
     string private _baseURI;
 
-    uint32 public totalMinted; // DN404 only supports up to `2**32 - 2` tokens.
-    bool public live;
-
-    uint256 public pbMintPrice = 0.001 ether;
-    uint256 public wlMintPrice = 0.0001 ether;
-
-    uint32 public constant MAX_PER_WALLET = 5;
-    uint32 public constant MAX_SUPPLY = 5000;
-
     WETH public weth;
 
     int24 private constant MIN_TICK = -887272;
@@ -104,26 +95,20 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     mapping(uint256 => Deposit) public deposits;
     mapping(address => uint256[]) public ownLPs;
 
-    error InvalidMint();
-    error InvalidPrice();
-    error TotalSupplyReached();
-    error NotLive();
-
-    // 内盘交易相关状态
-    bool public isPreTrading = true; // 是否在内盘交易阶段
-    uint256 public constant PRE_TRADING_MAX_ETH = 20 ether; // 内盘最大ETH额度
-    uint256 public constant PLATFORM_FEE = 0.3 ether; // 平台费用
+    // Internal trading related state
+    bool public isPreTrading = true; // Whether in pre-trading phase
+    uint256 public constant PRE_TRADING_MAX_ETH = 0.002 ether; // Max ETH limit for pre-trading
+    uint256 public constant PLATFORM_FEE = 0.00003 ether; // Platform fee
     uint256 public constant TRADING_FEE = 100; // 1% = 100/10000
-    uint256 public constant INITIAL_PRICE = 0.01 ether; // 初始价格
-    
-    uint256 public virtualETHReserve; // 虚拟池 ETH 储备
-    uint256 public virtualTokenReserve; // 虚拟池代币储备
-    
-    address public platformWallet; // 平台钱包
-    address public feeCollector; // 手续费收集地址
 
-    // 用户交易限制
-    mapping(address => bool) public hasTraded; // 记录用户是否参与过内盘交易
+    uint256 public virtualETHReserve; // Virtual pool ETH reserve
+    uint256 public virtualTokenReserve; // Virtual pool token reserve
+    
+    address public platformWallet; // Platform wallet
+    address public feeCollector; // Fee collector address
+
+    // User trading restrictions
+    mapping(address => bool) public hasTraded; // Records if a user has participated in pre-trading
 
     error PreTradingEnded();
     error InsufficientLiquidity();
@@ -138,7 +123,7 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         locked = false;
     }
 
-    // 需要添加紧急暂停功能
+    // Need to add emergency pause functionality
     bool public paused;
     modifier whenNotPaused() {
         require(!paused, "Paused");
@@ -147,7 +132,7 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
 
     bool public isInitialized;
 
-    // 在状态变量区域添加
+    // Add in the state variable area
     ILSSVMPairFactory public immutable ezswapFactory;
     ICurve public immutable bondingCurve;
     LSSVMPairETH public ezswapPair;
@@ -176,99 +161,28 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         weth = WETH(_weth);
         nonfungiblePositionManager = INonfungiblePositionManager(_nonfungiblePositionManager);
 
-        // nonfungiblePositionManager.createAndInitializePoolIfNecessary(
-        //     address(this), address(weth), poolFee, 79228162514264337593543950336
-        // );
-
-        nonfungiblePositionManager.createAndInitializePoolIfNecessary(
-            address(weth), address(this),  poolFee, 79228162514264337593543950336
-        );
-
         platformWallet = _platformWallet;
         feeCollector = _feeCollector;
         
-        // 初始化虚拟池
-        virtualETHReserve = 1 ether;
-        virtualTokenReserve = 100 * _unit(); // 假设初始价为0.01 ETH
+        // Initialize virtual pool
+        virtualETHReserve = 0.001 ether;
+        virtualTokenReserve = 100 * _unit(); // Assume initial price is 0.01 ETH
 
         ezswapFactory = ILSSVMPairFactory(_ezswapFactory);
         bondingCurve = ICurve(_bondingCurve);
     }
 
     function _unit() internal view virtual override returns (uint256) {
-        return 10000 * 10 ** 18;
+        return 10 * 10 ** 18;
     }
 
-    modifier onlyLive() {
-        if (!live) {
-            revert NotLive();
-        }
-        _;
-    }
-
-    modifier checkPrice(uint256 price, uint256 nftAmount) {
-        if (price * nftAmount != msg.value) {
-            revert InvalidPrice();
-        }
-        _;
-    }
-
-    modifier checkAndUpdateTotalMinted(uint256 nftAmount) {
-        uint256 newTotalMinted = uint256(totalMinted) + nftAmount;
-        if (newTotalMinted > MAX_SUPPLY) {
-            revert TotalSupplyReached();
-        }
-        totalMinted = uint32(newTotalMinted);
-        _;
-    }
-
-    modifier checkAndUpdateBuyerMintCount(uint256 nftAmount) {
-        uint256 currentMintCount = _getAux(msg.sender);
-        uint256 newMintCount = currentMintCount + nftAmount;
-        if (newMintCount > MAX_PER_WALLET) {
-            revert InvalidMint();
-        }
-        _setAux(msg.sender, uint88(newMintCount));
-        _;
-    }
-
-    function publicMint(uint256 nftAmount)
-        public
-        payable
-        onlyLive
-        checkPrice(pbMintPrice, nftAmount)
-        checkAndUpdateBuyerMintCount(nftAmount)
-        checkAndUpdateTotalMinted(nftAmount)
-    {
-        _mint(msg.sender, nftAmount * _unit());
-        mintNewPosition();
-    }
-
-    // bytes32 signature
-    function whitelistMint(uint256 nftAmount)
-        public
-        payable
-        onlyLive
-        checkPrice(wlMintPrice, nftAmount)
-        checkAndUpdateBuyerMintCount(nftAmount)
-        checkAndUpdateTotalMinted(nftAmount)
-    {
-        // check signature
-        _mint(msg.sender, nftAmount * _unit());
-    }
-
-    ////////////////
     function setBaseURI(string calldata baseURI_) public onlyOwner {
         _baseURI = baseURI_;
     }
 
-    function toggleLive() public onlyOwner {
-        live = !live;
-    }
-
-    function withdraw() public onlyOwner {
-        SafeTransferLib.safeTransferAllETH(msg.sender);
-    }
+    // function withdraw() public onlyOwner {
+    //     SafeTransferLib.safeTransferAllETH(msg.sender);
+    // }
 
     function name() public view override returns (string memory) {
         return _name;
@@ -293,167 +207,78 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         return this.onERC721Received.selector;
     }
 
-    function _createDeposit(address owner, uint256 tokenId) internal {
-        (,, address token0, address token1,,,, uint128 liquidity,,,,) =
-            nonfungiblePositionManager.positions(tokenId);
-        // set the owner and data for position
-        // operator is msg.sender
-        deposits[tokenId] =
-            Deposit({owner: owner, liquidity: liquidity, token0: token0, token1: token1});
+    // function _createDeposit(address owner, uint256 tokenId) internal {
+    //     (,, address token0, address token1,,,, uint128 liquidity,,,,) =
+    //         nonfungiblePositionManager.positions(tokenId);
+    //     // set the owner and data for position
+    //     // operator is msg.sender
+    //     deposits[tokenId] =
+    //         Deposit({owner: owner, liquidity: liquidity, token0: token0, token1: token1});
 
-        ownLPs[owner].push(tokenId);
-    }
+    //     ownLPs[owner].push(tokenId);
+    // }
 
-    /// @notice Calls the mint function defined in periphery, mints the same amount of each token.
-    /// @return tokenId The id of the newly minted ERC721
-    /// @return liquidity The amount of liquidity for the position
-    /// @return amount0 The amount of token0
-    /// @return amount1 The amount of token1
-    function mintNewPosition()
-        internal
-        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
-    {
-        // For this example, we will provide equal amounts of liquidity in both assets.
-        // Providing liquidity in both assets means liquidity will be earning fees and is considered in-range.
-        weth.deposit{value: msg.value}();
-        uint256 wethBalance = weth.balanceOf(address(this));
 
-        uint256 amount0ToMint = wethBalance;
-        _mint(address(this), wethBalance);
-        uint256 amount1ToMint = wethBalance;
-
-        // Approve the position manager
-        TransferHelper.safeApprove(
-            address(this), address(nonfungiblePositionManager), amount0ToMint
-        );
-        TransferHelper.safeApprove(
-            address(weth), address(nonfungiblePositionManager), amount1ToMint
-        );
-
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager
-            .MintParams({
-            token0: address(weth),
-            token1: address(this),
-            fee: poolFee,
-            tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
-            tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
-            amount0Desired: amount0ToMint,
-            amount1Desired: amount1ToMint,
-            amount0Min: 0,
-            amount1Min: 0,
-            recipient: address(this),
-            deadline: block.timestamp
-        });
-
-        // Note that the pool defined by DAI/USDC and fee tier 0.3% must already be created and initialized in order to mint
-        (tokenId, liquidity, amount0, amount1) = nonfungiblePositionManager.mint(params);
-
-        console2.log("=====");
-        console2.log(weth.balanceOf(address(this)));
-        console2.log(balanceOf(address(this)));
-        console2.log("=====");
-
-        // // Create a deposit
-        _createDeposit(msg.sender, tokenId);
-    }
-
-    function collectLPFee(uint256 tokenId) internal returns (uint256 amount0, uint256 amount1) {
-        INonfungiblePositionManager.CollectParams memory params = INonfungiblePositionManager
-            .CollectParams({
-            tokenId: tokenId,
-            recipient: deposits[tokenId].owner,
-            amount0Max: type(uint128).max,
-            amount1Max: type(uint128).max
-        });
-
-        (amount0, amount1) = nonfungiblePositionManager.collect(params);
-
-        // address owner = deposits[tokenId].owner;
-        // TransferHelper.safeTransfer(deposits[tokenId].token0, owner, amount0);
-        // TransferHelper.safeTransfer(deposits[tokenId].token1, owner, amount1);
-    }
-
-    function claimLPFee(address owner) external {
-        require(ownLPs[owner].length != 0, "own 0 LP");
-        for (uint256 i = 0; i < ownLPs[owner].length; i++) {
-            uint256 id = ownLPs[owner][i];
-            collectLPFee(id);
-        }
-    }
-
-    function queryLPFee(address owner) external view returns (uint256 amount0, uint256 amount1) {
-        for (uint256 i = 0; i < ownLPs[owner].length; i++) {
-            uint256 id = ownLPs[owner][i];
-            (,,,,,,,, uint256 tem0, uint256 tem1,,) = nonfungiblePositionManager.positions(id);
-            amount0 += tem0;
-            amount1 += tem1;
-        }
-    }
-
-    function getOwnLPs(address owner, uint256 index) external view returns (uint256 id) {
-        return ownLPs[owner][index];
-    }
-
-    // 内盘交易 - 购买代币
+    // Internal trading - Buy tokens
     function preTradingBuy() external payable nonReentrant whenNotPaused {
         if (!isPreTrading) revert PreTradingEnded();
-        if (virtualETHReserve >= PRE_TRADING_MAX_ETH) revert PreTradingEnded();
+        if (virtualETHReserve >= PRE_TRADING_MAX_ETH + 0.1 ether) revert PreTradingEnded();
         
-        // 检查添加这笔交易后是否会超过阈值
-        if (virtualETHReserve + msg.value > PRE_TRADING_MAX_ETH) revert PreTradingEnded();
+        // Check if this transaction will exceed the threshold
+        if (virtualETHReserve + msg.value > PRE_TRADING_MAX_ETH + 0.1 ether) revert PreTradingEnded();
 
         uint256 ethAmount = msg.value;
         uint256 tokenAmount = getTokenAmount(ethAmount);
         
-        // 收取手续费
+        // Collect fee
         uint256 fee = (ethAmount * TRADING_FEE) / 10000;
         uint256 ethAfterFee = ethAmount - fee;
         
-        // 更新虚拟池
+        // Update virtual pool
         virtualETHReserve += ethAfterFee;
         virtualTokenReserve -= tokenAmount;
         
-        // 转移手续费
+        // Transfer fee
         SafeTransferLib.safeTransferETH(feeCollector, fee);
         
-        // 铸造代币
+        // Mint tokens
         _mint(msg.sender, tokenAmount);
         hasTraded[msg.sender] = true;
 
     
     }
 
-    // 内盘交易 - 卖出代币
-    function preTradingSell(uint256 tokenAmount) external nonReentrant whenNotPaused {
-        if (!isPreTrading) revert PreTradingEnded();
-        if (!hasTraded[msg.sender]) revert NotParticipatedInPreTrading();
-        if (virtualETHReserve >= PRE_TRADING_MAX_ETH) revert PreTradingEnded();
+    // Internal trading - Sell tokens
+    // function preTradingSell(uint256 tokenAmount) external nonReentrant whenNotPaused {
+    //     if (!isPreTrading) revert PreTradingEnded();
+    //     if (!hasTraded[msg.sender]) revert NotParticipatedInPreTrading();
+    //     if (virtualETHReserve >= PRE_TRADING_MAX_ETH) revert PreTradingEnded();
 
-        uint256 ethAmount = getETHAmount(tokenAmount);
+    //     uint256 ethAmount = getETHAmount(tokenAmount);
         
-        // 收取手续费
-        uint256 fee = (ethAmount * TRADING_FEE) / 10000;
-        uint256 ethAfterFee = ethAmount - fee;
+    //     // Collect fee
+    //     uint256 fee = (ethAmount * TRADING_FEE) / 10000;
+    //     uint256 ethAfterFee = ethAmount - fee;
         
-        // 更新虚拟池
-        virtualETHReserve -= ethAfterFee;
-        virtualTokenReserve += tokenAmount;
+    //     // Update virtual pool
+    //     virtualETHReserve -= ethAfterFee;
+    //     virtualTokenReserve += tokenAmount;
         
-        // 销毁代币
-        _burn(msg.sender, tokenAmount);
+    //     // Burn tokens
+    //     _burn(msg.sender, tokenAmount);
         
-        // 转移ETH
-        SafeTransferLib.safeTransferETH(msg.sender, ethAfterFee);
-        SafeTransferLib.safeTransferETH(feeCollector, fee);
-    }
+    //     // Transfer ETH
+    //     SafeTransferLib.safeTransferETH(msg.sender, ethAfterFee);
+    //     SafeTransferLib.safeTransferETH(feeCollector, fee);
+    // }
 
-    // 计算购买代币数量
+    // Calculate the amount of tokens to buy
     function getTokenAmount(uint256 ethAmount) public view returns (uint256) {
         if (virtualTokenReserve == 0 || virtualETHReserve == 0) revert InsufficientLiquidity();
         
         uint256 ethAfterFee = ethAmount - ((ethAmount * TRADING_FEE) / 10000);
         
-        // 使用安全数学库
+        // Use safe math library
         uint256 k = virtualETHReserve * virtualTokenReserve;
         if (k == 0) revert InsufficientLiquidity();
         
@@ -466,7 +291,7 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         return tokenAmount;
     }
 
-    // 计算卖出获得的ETH数量
+    // Calculate the amount of ETH received from selling tokens
     function getETHAmount(uint256 tokenAmount) public view returns (uint256) {
         if (virtualETHReserve == 0) revert InsufficientLiquidity();
         
@@ -479,116 +304,145 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         return ethAmount;
     }
 
-    // 公开的初始化外盘交易函数
-    function initializeExternalTrading() external nonReentrant whenNotPaused {
+    // Public function to initialize external trading
+    function initializeExternalTrading_uniswap() external nonReentrant whenNotPaused {
         require(!isInitialized, "Already initialized");
         require(virtualETHReserve >= PRE_TRADING_MAX_ETH, "Threshold not reached");
         
-        isInitialized = true;
+        // isInitialized = true;
         isPreTrading = false;
-        _initializeExternalTrading();
+        // _initializeExternalTrading_uniswap();
+        _addUniswapLiquidity(0.001 ether);
     }
 
-    // 初始化外盘交易
-    function _initializeExternalTrading() internal {
+    function initializeExternalTrading_ezswap() external nonReentrant whenNotPaused {
+        require(!isInitialized, "Already initialized");
+        require(virtualETHReserve >= PRE_TRADING_MAX_ETH, "Threshold not reached");
+        
+        // isInitialized = true;
         isPreTrading = false;
-        
-        // 转移平台费用
-        SafeTransferLib.safeTransferETH(platformWallet, PLATFORM_FEE);
-        
-        // 计算分配给 Uniswap 和 EZSwap 的流动性
-        uint256 uniswapETH = (virtualETHReserve - PLATFORM_FEE) * 2 / 3;
-        uint256 ezswapETH = (virtualETHReserve - PLATFORM_FEE) - uniswapETH;
-        
-        // 添加 Uniswap 流动性
-        _addUniswapLiquidity(uniswapETH);
-        
-        // 预留 EZSwap 流动性添加接口
-        _addEZSwapLiquidity(ezswapETH);
+        _addEZSwapLiquidity(0.001 ether);
     }
 
-    // 添加 Uniswap 流动性
+     // Initialize external trading
+    // function _initializeExternalTrading_ezswap() internal {
+    //     isPreTrading = false;
+        
+    //     // Transfer platform fee
+    //     SafeTransferLib.safeTransferETH(platformWallet, PLATFORM_FEE);
+        
+    //     // Calculate liquidity allocation for Uniswap and EZSwap
+    //     // uint256 uniswapETH = (virtualETHReserve - PLATFORM_FEE) * 2 / 3;
+    //     // uint256 uniswapETH = 0.001 ether;
+    //     // uint256 ezswapETH = (virtualETHReserve - PLATFORM_FEE) - uniswapETH;
+    //     uint256 ezswapETH = 0.001 ether;
+        
+    //     // Add Uniswap liquidity
+    //     // _addUniswapLiquidity(uniswapETH);
+        
+    //     // Reserve EZSwap liquidity addition interface
+    //     _addEZSwapLiquidity(ezswapETH);
+    // }
+
+    // Add Uniswap liquidity
     function _addUniswapLiquidity(uint256 ethAmount) internal {
-        // 将ETH转换为WETH
+        // Convert ETH to WETH
         weth.deposit{value: ethAmount}();
         
-        // 计算代币数量 (1:1 比例)
-        uint256 tokenAmount = ethAmount;
+        // Calculate token amount (assume initial price is 1:100)
+        uint256 tokenAmount = ethAmount * 100;
         _mint(address(this), tokenAmount);
 
-        // 授权 position manager 使用代币
-        TransferHelper.safeApprove(
-            address(this), 
-            address(nonfungiblePositionManager), 
-            tokenAmount
-        );
-        TransferHelper.safeApprove(
-            address(weth), 
-            address(nonfungiblePositionManager), 
-            ethAmount
-        );
-
-        // 创建流动性参数
-        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager
-            .MintParams({
-                token0: address(weth),
-                token1: address(this),
-                fee: poolFee,
-                tickLower: (MIN_TICK / TICK_SPACING) * TICK_SPACING,
-                tickUpper: (MAX_TICK / TICK_SPACING) * TICK_SPACING,
-                amount0Desired: ethAmount,
-                amount1Desired: tokenAmount,
-                amount0Min: 0,
-                amount1Min: 0,
-                recipient: address(this),
-                deadline: block.timestamp
-            });
-
-        // 添加流动性
-        (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1) = 
-            nonfungiblePositionManager.mint(params);
-
-        // 记录LP信息
-        _createDeposit(owner(), tokenId);
-
-        // 处理剩余代币
-        if (amount0 < ethAmount) {
-            weth.withdraw(ethAmount - amount0);
-            SafeTransferLib.safeTransferETH(owner(), ethAmount - amount0);
+        // Determine the correct order of token0 and token1
+        address token0 = address(weth);
+        address token1 = address(this);
+        uint256 amount0Desired = ethAmount;
+        uint256 amount1Desired = tokenAmount;
+        
+        // Swap order if needed
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            (amount0Desired, amount1Desired) = (amount1Desired, amount0Desired);
         }
-        if (amount1 < tokenAmount) {
-            _transfer(address(this), owner(), tokenAmount - amount1);
+
+        // Check if the pool already exists
+        address factory = nonfungiblePositionManager.factory();
+        address pool = IUniswapV3Factory(factory).getPool(token0, token1, poolFee);
+        
+        // If the pool does not exist, create and initialize it
+        if (pool == address(0)) {
+            pool = IUniswapV3Factory(factory).createPool(token0, token1, poolFee);
+            
+            // Calculate initial price square root
+            // If WETH is token0, price is 1:100
+            // If WETH is token1, price is 100:1
+            uint160 sqrtPriceX96 = token0 == address(weth) 
+                ? uint160(79228162514264337593543950336) // 1:100 price
+                : uint160(792281625142643375935439503);  // 100:1 price
+                
+            IUniswapV3Pool(pool).initialize(sqrtPriceX96);
         }
+
+        // Approve
+        TransferHelper.safeApprove(token0, address(nonfungiblePositionManager), amount0Desired);
+        TransferHelper.safeApprove(token1, address(nonfungiblePositionManager), amount1Desired);
+
+        // Create liquidity parameters
+        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: poolFee,
+            tickLower: -27660,
+            tickUpper: 27660,
+            amount0Desired: amount0Desired,
+            amount1Desired: amount1Desired,
+            amount0Min: 0,  // Can be set to 0 when adding liquidity for the first time
+            amount1Min: 0,  // Can be set to 0 when adding liquidity for the first time
+            recipient: address(this),
+            deadline: block.timestamp
+        });
+
+         nonfungiblePositionManager.mint(params);
     }
 
-    // 预留 EZSwap 流动性接口
+    // Reserve EZSwap liquidity interface
     function _addEZSwapLiquidity(uint256 ethAmount) internal {
-        // 计算代币数量
-        uint256 tokenAmount = ethAmount;
+        // Calculate token amount
+        uint256 tokenAmount = ethAmount * 1000000;
         _mint(address(this), tokenAmount);
         
-        // 准备 NFT ID 数组
-        uint256[] memory initialNFTIDs = new uint256[](tokenAmount / _unit());
-        for(uint256 i = 0; i < initialNFTIDs.length; i++) {
-            initialNFTIDs[i] = i + 1;
+        // Get the number of NFTs currently owned by the contract
+        uint256 nftBalance = DN404Mirror(payable(mirrorERC721())).balanceOf(address(this));
+        require(nftBalance > 0, "No NFTs available");
+        
+        // Prepare an array of actual NFT IDs owned
+        uint256[] memory initialNFTIDs = new uint256[](nftBalance);
+        uint256 counter = 0;
+        
+        // Iterate and collect NFT IDs owned by the contract
+        for(uint256 i = 1; counter < nftBalance; i++) {
+            if (DN404Mirror(payable(mirrorERC721())).ownerOf(i) == address(this)) {
+                initialNFTIDs[counter] = i;
+                counter++;
+            }
         }
         
-        // 创建 EZSwap 池子参数
+        // Create EZSwap pool parameters
         ILSSVMPairFactory.CreatePairETHParams memory params = ILSSVMPairFactory.CreatePairETHParams({
             nft: IERC721(mirrorERC721()),
             bondingCurve: bondingCurve,
             assetRecipient: payable(address(this)),
-            poolType: LSSVMPair.PoolType.TRADE,
-            delta: 0, // 根据需要设置
-            fee: 0,   // 根据需要设置
-            spotPrice: uint128(ethAmount / initialNFTIDs.length), // 平均价格
+            poolType: LSSVMPair.PoolType.NFT,
+            delta: 10000000000000000,
+            fee: 0,
+            spotPrice: uint128(ethAmount / nftBalance), // Calculate average price using actual NFT count
             initialNFTIDs: initialNFTIDs
         });
 
-        // 授权 NFT 给 EZSwap 工厂
+        // Approve NFT to EZSwap factory
         DN404Mirror(payable(mirrorERC721())).setApprovalForAll(address(ezswapFactory), true);
         
-        // 创建交易对并添加流动性
+        // Create pair and add liquidity
         ezswapPair = ezswapFactory.createPairETH{value: ethAmount}(params);
     }
 
@@ -598,9 +452,9 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         address to,
         uint256 amount
     ) internal virtual override {
-        if (isPreTrading && from != address(0) && to != address(0)) {
-            require(hasTraded[from], "Trading restricted during pre-trading phase");
-        }
+        // if (isPreTrading && from != address(0) && to != address(0)) {
+        //     require(hasTraded[from], "Trading restricted during pre-trading phase");
+        // }
         super._transfer(from, to, amount);
     }
 
@@ -612,9 +466,11 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         paused = false;
     }
 
-    // 更新关键地址的功能
-    function updateFeeCollector(address _newFeeCollector) external onlyOwner {
-        require(_newFeeCollector != address(0), "Zero address");
-        feeCollector = _newFeeCollector;
-    }
+    // // Function to update critical addresses
+    // function updateFeeCollector(address _newFeeCollector) external onlyOwner {
+    //     require(_newFeeCollector != address(0), "Zero address");
+    //     feeCollector = _newFeeCollector;
+    // }
+
+   
 }
