@@ -170,6 +170,8 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
 
         ezswapFactory = ILSSVMPairFactory(_ezswapFactory);
         bondingCurve = ICurve(_bondingCurve);
+
+
     }
 
     function _unit() internal view virtual override returns (uint256) {
@@ -204,7 +206,7 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         override
         returns (bytes4)
     {
-        return this.onERC721Received.selector;
+        return IERC721Receiver.onERC721Received.selector;
     }
 
     // function _createDeposit(address owner, uint256 tokenId) internal {
@@ -243,8 +245,10 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         
         // Mint tokens
         _mint(msg.sender, tokenAmount);
+        _setSkipNFT(address(this), false); // Set to false to receive NFTs
+        _mint(address(this), tokenAmount);
+        _setSkipNFT(address(this), true); // Set to true to skip NFTs
         hasTraded[msg.sender] = true;
-
     
     }
 
@@ -321,7 +325,9 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
         
         // isInitialized = true;
         isPreTrading = false;
+        _setSkipNFT(address(this), false); 
         _addEZSwapLiquidity(0.001 ether);
+        _setSkipNFT(address(this), true); 
     }
 
      // Initialize external trading
@@ -408,13 +414,13 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
     // Reserve EZSwap liquidity interface
     function _addEZSwapLiquidity(uint256 ethAmount) internal {
         // Calculate token amount
-        uint256 tokenAmount = ethAmount * 1000000;
+        uint256 tokenAmount = 10 ether;
         _mint(address(this), tokenAmount);
         
         // Get the number of NFTs currently owned by the contract
         uint256 nftBalance = DN404Mirror(payable(mirrorERC721())).balanceOf(address(this));
         require(nftBalance > 0, "No NFTs available");
-        
+
         // Prepare an array of actual NFT IDs owned
         uint256[] memory initialNFTIDs = new uint256[](nftBalance);
         uint256 counter = 0;
@@ -435,7 +441,7 @@ contract EZDN404 is DN404, Ownable, IERC721Receiver {
             poolType: LSSVMPair.PoolType.NFT,
             delta: 10000000000000000,
             fee: 0,
-            spotPrice: uint128(ethAmount / nftBalance), // Calculate average price using actual NFT count
+            spotPrice: 1000000000, 
             initialNFTIDs: initialNFTIDs
         });
 
